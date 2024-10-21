@@ -10,7 +10,7 @@ const renderer = new THREE.WebGLRenderer({ canvas });
 const loader = new GLTFLoader();
 
 // Set camera position
-camera.position.set(10, 2, 5);
+camera.position.set(10, 10, 10);
 camera.lookAt(0, 0, 0);
 
 
@@ -26,14 +26,18 @@ loader.load('./Models/Portfolio-Island GLB.glb', function (gltf) {
         if (child.name === 'Invisible') {
             child.visible = false;
         }
+        if (child.name === 'Sunlight') {
+            child.intensity = 5;
+        }
+        if (child.name === 'Fire_Light') {
+            child.intensity = 3;
+        }
     });
     scene.add(island);
-    if (gltf.lights) {
-        console.log('Lights included in model:', gltf.lights);
-    }
+    
     island.position.set(0, 0, 0); // Adjust model position if needed
-    island.scale.set(0.5, 0.5, 0.5); // Scale model down if it's too large
 });
+
 
 // Set renderer size and pixel ratio
 renderer.setSize(window.innerWidth, window.innerHeight);
