@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'; // Correct import for GLTFLoader
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import './style.css';
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const canvas = document.querySelector('.webgl');
+
 const renderer = new THREE.WebGLRenderer({ canvas });
 const loader = new GLTFLoader();
-const playerSpeed = 0.02;
-camera.position.x = 20;
+const playerSpeed = 0.03;
 
 let mixer; // Animation mixer
 let idleAction, walkAction;
@@ -21,13 +22,25 @@ const keys = {
 
 const raycaster = new THREE.Raycaster();
 const downVector = new THREE.Vector3(0, -1, 0);
-const buffer = 0.1;
-let collisionObjects = [];
-let island; // To keep reference to the island mesh
 
+// Create and configure DRACOLoader
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('./path/to/draco/');  // Replace with correct Draco decoder path
+loader.setDRACOLoader(dracoLoader);
+
+//Light
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Light color, Intensity
+scene.add(ambientLight);
+
+scene.background = new THREE.Color(0x87CEEB);
+
+// const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x8B4513, 0.6); // Sky color, ground color, intensity
+// scene.add(hemiLight);
 
 // Load Island Model
-loader.load('./Models/Portfolio-Island GLB.glb', function (gltf) {
+let island;
+let terrain;
+loader.load('./Models/Portfolio-Island - Copy GLB.glb', function (gltf) {
     island = gltf.scene;
     island.traverse((child) => {
         if (child.name === 'Invisible') {
@@ -35,6 +48,16 @@ loader.load('./Models/Portfolio-Island GLB.glb', function (gltf) {
         }
         if (child.name === 'Sunlight') {
             child.intensity = 5;
+            child.castShadow = true;
+            child.shadow.mapSize.width = 2048;
+            child.shadow.mapSize.height = 2048;
+            child.shadow.camera.near = 1;
+            child.shadow.camera.far = 500;
+            child.shadow.camera.left = -50;
+            child.shadow.camera.right = 50;
+            child.shadow.camera.top = 50;
+            child.shadow.camera.bottom = -50;
+            child.shadow.bias = -0.0001;
         }
         if (child.name === 'Fire_Light') {
             child.intensity = 3;
@@ -42,19 +65,15 @@ loader.load('./Models/Portfolio-Island GLB.glb', function (gltf) {
     });
     scene.add(island);
 
-    scene.traverse(function (object) {
-        if (object.isMesh) {  // Only add meshes to avoid adding unnecessary objects
-            collisionObjects.push(object);
-        }
-    });
+    terrain = scene.getObjectByName("Grass");
 
-    island.position.set(0, 0, 0); // Adjust model position if needed
+    island.position.set(-20, 0, 0); // Adjust model position if needed
     island.scale.set(5, 5, 5);
 });
 
 //Player
 let player;
-loader.load('./Models/Character - Animation GLB.glb', function (gltf) {
+loader.load('./Models/Animation GLB.glb', function (gltf) {
     player = gltf.scene;
     scene.add(player);
 
@@ -78,24 +97,24 @@ loader.load('./Models/Character - Animation GLB.glb', function (gltf) {
     }
 
     //Player Pos
-    player.position.set(40, 40, 0); // Center the player on the island
+    player.position.set(40, 40, -50); // Center the player on the island
     player.scale.set(0.2, 0.2, 0.2);
 });
 
 function checkCollision() {
-    if (collisionObjects.length === 0) return; // No objects to check
+    if (!terrain) return; // Make sure terrain is loaded
 
-    // Cast the ray from above the player's position downwards
+    // Cast the ray from slightly above the player's position downwards
     raycaster.set(player.position.clone().add(new THREE.Vector3(0, 1, 0)), downVector);
 
-    // Check intersections with all objects in the collisionObjects array
-    const intersects = raycaster.intersectObjects(collisionObjects, true); // 'true' to check all children as well
+    // Check intersection with the "Grass" terrain mesh
+    const intersects = raycaster.intersectObject(terrain);
 
     if (intersects.length > 0) {
-        const closestObject = intersects[0];
-        const terrainHeight = closestObject.point.y;
+        const terrainHeight = intersects[0].point.y;
 
-        // Adjust player's Y position based on the detected collision
+        // Adjust player's Y position based on terrain height
+        const buffer = 0.1; // Buffer to keep the player slightly above the terrain
         if (player.position.y !== terrainHeight + buffer) {
             player.position.y = terrainHeight + buffer;
         }
@@ -121,10 +140,6 @@ document.addEventListener('keyup', (e) => {
 function animate() {
     requestAnimationFrame(animate);
 
-    camera.position.y = player.position.y + 10; // Fixed height
-    camera.position.z = player.position.z + 10; // Set camera behind the player
-    camera.lookAt(player.position); // Ensure the camera looks at the player
-
     if (mixer) {
         mixer.update(0.005); // Update the mixer with the delta time (adjust if needed)
     }
@@ -134,39 +149,40 @@ function animate() {
 
         // Move left/right with boundary checks
         if (keys['d']) { // Right boundary
-            player.position.z += playerSpeed; // Move right
-            isMoving = true;
-            player.rotation.y = 0;
-            if(camera.position.x > 10){
-                camera.position.x -= playerSpeed
-            }
-        }
-        if (keys['a']) { // Left boundary
-            player.position.z -= playerSpeed; // Move left
+            player.position.z -= playerSpeed; // Move right
             isMoving = true;
             player.rotation.y = Math.PI;
-            if(camera.position.x < 70){
-                camera.position.x += playerSpeed
-            }
+        }
+        if (keys['a']) { // Left boundary
+            player.position.z += playerSpeed; // Move left
+            isMoving = true;
+            player.rotation.y = 0;
         }
         
 
         // Change animations based on movement
         if (isMoving) {
             if (currentAction !== walkAction) { // Switch to walk if not already walking
-                if (currentAction) currentAction.fadeOut(0.1); 
+                if (currentAction) currentAction.fadeOut(0.2); 
                 currentAction = walkAction;
-                currentAction.reset().fadeIn(0.1).play();
+                currentAction.reset().fadeIn(0.2).play();
             }
         } else {
             if (currentAction !== idleAction) { // Switch to idle if not moving
-                if (currentAction) currentAction.fadeOut(0.1);
+                if (currentAction) currentAction.fadeOut(0.2);
                 currentAction = idleAction;
-                currentAction.reset().fadeIn(0.1).play();
+                currentAction.reset().fadeIn(0.2).play();
             }
         }
+        camera.position.y = player.position.y + 7; // Fixed height
+        camera.position.z = player.position.z;
+        camera.position.x = player.position.x +10 // Set camera behind the player
         checkCollision();
     }
+
+    
+    
+    camera.lookAt(player.position); // Ensure the camera looks at the player
 
     renderer.render(scene, camera);
 }
