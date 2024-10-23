@@ -4,12 +4,12 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import './style.css';
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
 const canvas = document.querySelector('.webgl');
 
-const renderer = new THREE.WebGLRenderer({ canvas });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, precision: 'highup'});
 const loader = new GLTFLoader();
-const playerSpeed = 0.03;
+const playerSpeed = 0.1;
 
 let mixer; // Animation mixer
 let idleAction, walkAction;
@@ -29,13 +29,11 @@ dracoLoader.setDecoderPath('./path/to/draco/');  // Replace with correct Draco d
 loader.setDRACOLoader(dracoLoader);
 
 //Light
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Light color, Intensity
+const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
 scene.add(ambientLight);
 
+//Background
 scene.background = new THREE.Color(0x87CEEB);
-
-// const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x8B4513, 0.6); // Sky color, ground color, intensity
-// scene.add(hemiLight);
 
 // Load Island Model
 let island;
@@ -48,16 +46,7 @@ loader.load('./Models/Portfolio-Island - Copy GLB.glb', function (gltf) {
         }
         if (child.name === 'Sunlight') {
             child.intensity = 5;
-            child.castShadow = true;
-            child.shadow.mapSize.width = 2048;
-            child.shadow.mapSize.height = 2048;
-            child.shadow.camera.near = 1;
-            child.shadow.camera.far = 500;
-            child.shadow.camera.left = -50;
-            child.shadow.camera.right = 50;
-            child.shadow.camera.top = 50;
-            child.shadow.camera.bottom = -50;
-            child.shadow.bias = -0.0001;
+            child.castShadow = false;
         }
         if (child.name === 'Fire_Light') {
             child.intensity = 3;
@@ -66,8 +55,7 @@ loader.load('./Models/Portfolio-Island - Copy GLB.glb', function (gltf) {
     scene.add(island);
 
     terrain = scene.getObjectByName("Grass");
-
-    island.position.set(-20, 0, 0); // Adjust model position if needed
+    island.position.set(0, 0, 0); // Adjust model position if needed
     island.scale.set(5, 5, 5);
 });
 
@@ -97,7 +85,7 @@ loader.load('./Models/Animation GLB.glb', function (gltf) {
     }
 
     //Player Pos
-    player.position.set(40, 40, -50); // Center the player on the island
+    player.position.set(65, 40, -50); // Center the player on the island
     player.scale.set(0.2, 0.2, 0.2);
 });
 
